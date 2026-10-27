@@ -1,18 +1,5 @@
 import type { Rate } from '@/lib/frankfurter'
-
-function formatRate(value: number) {
-  // Small rates (JPY to USD, say) need more digits to mean anything
-  return value.toLocaleString('en-US', { maximumSignificantDigits: value < 1 ? 4 : 6, minimumFractionDigits: 2 })
-}
-
-function formatDate(date: string) {
-  return new Date(`${date}T00:00:00Z`).toLocaleDateString('en-US', {
-    timeZone: 'UTC',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
+import { formatDate, formatRate } from '@/lib/format'
 
 export function RateCard({ base, quote, rate, date }: Rate) {
   return (
@@ -20,7 +7,7 @@ export function RateCard({ base, quote, rate, date }: Rate) {
       <div className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
         {base} → {quote}
       </div>
-      <div className="mt-1 text-3xl font-semibold tabular-nums">
+      <div className="mt-1 text-3xl font-semibold">
         1 {base} = {formatRate(rate)} {quote}
       </div>
       <div className="mt-1 text-sm tabular-nums text-zinc-500 dark:text-zinc-400">

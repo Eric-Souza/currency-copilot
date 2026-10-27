@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { getLatestRate } from '@/lib/frankfurter'
+import { getLatestRate, getRateHistory } from '@/lib/frankfurter'
 
 const fakeFetch = (body: unknown, init: ResponseInit = {}) =>
   vi.fn(async () => Response.json(body, init)) as unknown as typeof fetch & ReturnType<typeof vi.fn>
@@ -30,5 +30,27 @@ describe('getLatestRate', () => {
   it('reports other failures', async () => {
     const fetchFn = fakeFetch({}, { status: 503, statusText: 'Service Unavailable' })
     await expect(getLatestRate('USD', 'BRL', fetchFn)).rejects.toThrow('Frankfurter returned 503 Service Unavailable')
+  })
+})
+
+describe('getRateHistory', () => {
+  const series = {
+    amount: 1,
+    base: 'USD',
+    start_date: '2026-09-25',
+    end_date: '2026-10-26',
+    rates: { '2026-10-26': { BRL: 5.5884 }, '2026-09-25': { BRL: 5.0 }, '2026-10-01': { BRL: 4.9 } },
+  }
+
+  it('returns sorted points and the summary the chart shows', async () => {
+    const fetchFn = fakeFetch(series)
+    const history = await getRateHistory('usd', 'brl', 30, fetchFn, new Date('2026-10-26T12:00:00Z'))
+    expect(fetchFn).toHaveBeenCalledWith('https://api.frankfurter.dev/v1/2026-09-26..?base=USD&symbols=BRL', expect.anything())
+    expect(history.points.map((p) => p.date)).toEqual(['2026-09-25', '2026-10-01', '2026-10-26'])
+    expect(history).toMatchObject({ first: 5, last: 5.5884, min: 4.9, max: 5.5884, changePct: 11.77 })
+  })
+
+  it('has nothing to chart for the same currency', async () => {
+    await expect(getRateHistory('EUR', 'eur', 30, fakeFetch(series))).rejects.toThrow(/always 1/)
   })
 })

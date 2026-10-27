@@ -3,9 +3,14 @@
 import { useChat } from '@ai-sdk/react'
 import { useEffect, useRef, useState } from 'react'
 import { RateCard, RateCardSkeleton } from '@/components/tool-ui/rate-card'
+import { RateHistoryChart, RateHistorySkeleton } from '@/components/tool-ui/rate-history-chart'
 import type { ChatMessage } from '@/lib/tools'
 
-const SUGGESTIONS = ['What is the dollar worth in reais today?', 'EUR to GBP', 'How many yen for one Swiss franc?']
+const SUGGESTIONS = [
+  'What is the dollar worth in reais today?',
+  'How has USD/BRL moved this month?',
+  'EUR to GBP over the last 3 months',
+]
 
 function ToolError({ text }: { text: string }) {
   return (
@@ -34,6 +39,17 @@ function MessageParts({ message }: { message: ChatMessage }) {
             return null
           default:
             return <RateCardSkeleton key={i} />
+        }
+      case 'tool-getRateHistory':
+        switch (part.state) {
+          case 'output-available':
+            return <RateHistoryChart key={i} {...part.output} />
+          case 'output-error':
+            return <ToolError key={i} text={part.errorText} />
+          case 'output-denied':
+            return null
+          default:
+            return <RateHistorySkeleton key={i} />
         }
       default:
         return null

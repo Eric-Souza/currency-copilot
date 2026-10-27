@@ -13,14 +13,23 @@ export interface Rate {
   date: string
 }
 
+export interface RateHistory {
+  base: string
+  quote: string
+  /** One point per working day, oldest first */
+  points: { date: string; rate: number }[]
+  first: number
+  last: number
+  min: number
+  max: number
+  /** Change from the first to the last point, in percent */
+  changePct: number
+}
+
 export class FrankfurterError extends Error {}
 
-export async function getLatestRate(base: string, quote: string, fetchFn: typeof fetch = fetch): Promise<Rate> {
-  base = base.toUpperCase()
-  quote = quote.toUpperCase()
-  const response = await fetchFn(`${BASE_URL}/latest?base=${base}&symbols=${quote}`, {
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  }).catch((error) => {
+async function request<T>(path: string, pair: string, fetchFn: typeof fetch): Promise<T> {
+  const response = await fetchFn(`${BASE_URL}${path}`, { signal: AbortSignal.timeout(TIMEOUT_MS) }).catch((error) => {
     if (error instanceof Error && error.name === 'TimeoutError') {
       throw new FrankfurterError(`Frankfurter didn't respond within ${TIMEOUT_MS / 1000} seconds. Try again.`)
     }
@@ -28,13 +37,52 @@ export async function getLatestRate(base: string, quote: string, fetchFn: typeof
   })
   if (response.status === 404) {
     throw new FrankfurterError(
-      `${base}/${quote} isn't available. Frankfurter covers about 30 major currencies (ECB reference rates).`,
+      `${pair} isn't available. Frankfurter covers about 30 major currencies (ECB reference rates).`,
     )
   }
   if (!response.ok) throw new FrankfurterError(`Frankfurter returned ${response.status} ${response.statusText}`)
-  const data = (await response.json()) as { date: string; rates: Record<string, number> }
+  return response.json() as Promise<T>
+}
+
+export async function getLatestRate(base: string, quote: string, fetchFn: typeof fetch = fetch): Promise<Rate> {
+  base = base.toUpperCase()
+  quote = quote.toUpperCase()
+  const data = await request<{ date: string; rates: Record<string, number> }>(`/latest?base=${base}&symbols=${quote}`, `${base}/${quote}`, fetchFn)
   // Frankfurter leaves the base out of the rates, so USD/USD comes back empty
   const rate = base === quote ? 1 : data.rates[quote]
   if (rate === undefined) throw new FrankfurterError(`Frankfurter returned no ${base}/${quote} rate`)
   return { base, quote, rate, date: data.date }
+}
+
+/** Daily rates for the last `days` calendar days (Frankfurter snaps the start to a working day). */
+export async function getRateHistory(
+  base: string,
+  quote: string,
+  days: number,
+  fetchFn: typeof fetch = fetch,
+  today: Date = new Date(),
+): Promise<RateHistory> {
+  base = base.toUpperCase()
+  quote = quote.toUpperCase()
+  if (base === quote) throw new FrankfurterError(`${base}/${quote} is always 1, so there's no history to show.`)
+  const start = new Date(today.getTime() - days * 86_400_000).toISOString().slice(0, 10)
+  const data = await request<{ rates: Record<string, Record<string, number>> }>(`/${start}..?base=${base}&symbols=${quote}`, `${base}/${quote}`, fetchFn)
+  const points = Object.entries(data.rates)
+    .map(([date, rates]) => ({ date, rate: rates[quote] }))
+    .filter((p) => p.rate !== undefined)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  if (points.length === 0) throw new FrankfurterError(`Frankfurter returned no ${base}/${quote} rates since ${start}`)
+  const rates = points.map((p) => p.rate)
+  const first = rates[0]
+  const last = rates[rates.length - 1]
+  return {
+    base,
+    quote,
+    points,
+    first,
+    last,
+    min: Math.min(...rates),
+    max: Math.max(...rates),
+    changePct: Math.round(((last - first) / first) * 10_000) / 100,
+  }
 }

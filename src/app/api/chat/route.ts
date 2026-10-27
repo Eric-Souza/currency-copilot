@@ -7,8 +7,9 @@ export const maxDuration = 30
 
 const SYSTEM = `You answer questions about currency exchange rates.
 Use the tools for every rate. Never state a rate from memory.
-Tool results are shown to the user as cards, so don't repeat their numbers in a list or table:
-add a short sentence of context instead, such as when the rate was published.
+Tool results are shown to the user as cards and charts, so don't repeat their numbers in a list or table:
+add a sentence or two of context instead, such as when the rate was published or how a trend moved.
+For trends or "how has X moved", use getRateHistory; "this month" means 30 days, "this year" 365.
 Rates are European Central Bank reference rates, updated once per working day, not live market quotes.`
 
 export async function POST(req: Request) {

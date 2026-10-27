@@ -3,6 +3,11 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Charts: series-1 is validated against the card surfaces (white, zinc-900) in both modes */
+  --series-1: #2a78d6;
+  --chart-grid: #e4e4e7;
+  --chart-text: #71717a;
+  --chart-surface: #ffffff;
 }
 
 @theme inline {
@@ -16,6 +21,10 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --series-1: #3987e5;
+    --chart-grid: #27272a;
+    --chart-text: #a1a1aa;
+    --chart-surface: #18181b;
   }
 }
 
