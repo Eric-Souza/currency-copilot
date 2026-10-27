@@ -1,5 +1,5 @@
 // The chat route end to end with a scripted model: it calls getRate, gets Frankfurter's rate
-// (faked), and then answers. No API key or network needed.
+// (faked), and then answers, and the conversation is saved. No API key, network, or database needed.
 
 import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV3 } from 'ai/test'
@@ -20,16 +20,39 @@ function scripted(...steps: unknown[][]) {
 const model = vi.hoisted(() => ({ current: undefined as unknown }))
 vi.mock('@/lib/model', () => ({ getModel: () => model.current }))
 
+// The browser's cookie jar, and a chat store kept in memory
+const jar = vi.hoisted(() => new Map<string, string>())
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => (jar.has(name) ? { name, value: jar.get(name) } : undefined),
+    set: (name: string, value: string) => void jar.set(name, value),
+  }),
+}))
+const saved = vi.hoisted(() => new Map<string, { owner: string; messages: unknown[] }>())
+vi.mock('@/lib/db', () => ({
+  getChatStore: () => ({
+    load: async (id: string, owner: string) => {
+      const chat = saved.get(id)
+      return !chat ? [] : chat.owner === owner ? chat.messages : null
+    },
+    save: async (id: string, owner: string, messages: unknown[]) => void saved.set(id, { owner, messages }),
+  }),
+}))
+
 const { POST } = await import('@/app/api/chat/route')
 
-function chatRequest(text: string) {
+function chatRequest(text: string, id = 'chat0001') {
   return new Request('http://localhost/api/chat', {
     method: 'POST',
-    body: JSON.stringify({ messages: [{ id: 'u1', role: 'user', parts: [{ type: 'text', text }] }] }),
+    body: JSON.stringify({ id, messages: [{ id: 'u1', role: 'user', parts: [{ type: 'text', text }] }] }),
   })
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  jar.clear()
+  saved.clear()
+})
 
 describe('POST /api/chat', () => {
   it('runs getRate and streams its result, then the answer', async () => {
@@ -68,5 +91,33 @@ describe('POST /api/chat', () => {
     const body = await (await POST(chatRequest('USD to ARS?'))).text()
     expect(body).toContain('"type":"tool-output-error"')
     expect(body).toContain("USD/ARS isn't available")
+  })
+
+  it("saves the conversation under the browser's owner cookie", async () => {
+    vi.stubGlobal('fetch', async () => Response.json({}))
+    model.current = scripted([
+      { type: 'text-start', id: 't1' },
+      { type: 'text-delta', id: 't1', delta: 'Hello.' },
+      { type: 'text-end', id: 't1' },
+      { type: 'finish', finishReason: { unified: 'stop', raw: undefined }, usage },
+    ])
+    await (await POST(chatRequest('hi'))).text()
+    const chat = saved.get('chat0001')
+    expect(chat?.owner).toBe(jar.get('cc_owner'))
+    expect(JSON.parse(JSON.stringify(chat?.messages))).toMatchObject([
+      { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'hi' }] },
+      { id: expect.stringMatching(/^msg-/), role: 'assistant', parts: [{ type: 'step-start' }, { type: 'text', text: 'Hello.' }] },
+    ])
+  })
+
+  it("refuses another browser's chat and malformed requests", async () => {
+    saved.set('chat0001', { owner: 'someone-else', messages: [] })
+    expect((await POST(chatRequest('hi'))).status).toBe(404)
+    expect((await POST(chatRequest('hi', '../x'))).status).toBe(400)
+    const bad = new Request('http://localhost/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ id: 'chat0002', messages: [{ id: 'u1', role: 'robot', parts: [] }] }),
+    })
+    expect((await POST(bad)).status).toBe(400)
   })
 })

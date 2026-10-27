@@ -1,6 +1,7 @@
 'use client'
 
 import { useChat } from '@ai-sdk/react'
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { ExchangeSummary, ExchangeSummarySkeleton } from '@/components/tool-ui/exchange-summary'
 import { ConversionTable, ConversionTableSkeleton } from '@/components/tool-ui/conversion-table'
@@ -82,10 +83,63 @@ function MessageParts({ message }: { message: ChatMessage }) {
   })
 }
 
-export function Chat() {
-  // A fixed id until chats are saved (Neon). Without one, useChat generates a random id while
-  // rendering, which Cache Components rejects during the prerender
-  const { messages, sendMessage, status, error, regenerate } = useChat<ChatMessage>({ id: 'chat' })
+function Header({ recent = [] }: { recent?: { id: string; title: string }[] }) {
+  return (
+    <header className="py-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold">Currency Copilot</h1>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            Exchange rates from the European Central Bank, explained.
+          </p>
+        </div>
+        {/* A full navigation: / is a route handler that redirects to a new chat */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+        <a
+          href="/"
+          className="shrink-0 rounded-full border border-black/10 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-white/15 dark:hover:bg-zinc-800"
+        >
+          New chat
+        </a>
+      </div>
+      {recent.length > 0 && (
+        <details className="mt-3 text-sm">
+          <summary className="cursor-pointer text-zinc-500 dark:text-zinc-400">Recent chats</summary>
+          <ul className="mt-2 space-y-1">
+            {recent.map((chat) => (
+              <li key={chat.id}>
+                <Link href={`/chat/${chat.id}`} className="block truncate hover:underline">
+                  {chat.title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </header>
+  )
+}
+
+/** The page's static shell while a saved chat loads */
+export function ChatShell() {
+  return (
+    <div className="mx-auto flex h-dvh w-full max-w-2xl flex-col px-4">
+      <Header />
+      <main className="flex-1 text-sm text-zinc-500 dark:text-zinc-400">Loading chat…</main>
+    </div>
+  )
+}
+
+export function Chat({
+  id,
+  initialMessages,
+  recent,
+}: {
+  id: string
+  initialMessages: ChatMessage[]
+  recent: { id: string; title: string }[]
+}) {
+  const { messages, sendMessage, status, error, regenerate } = useChat<ChatMessage>({ id, messages: initialMessages })
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const busy = status === 'submitted' || status === 'streaming'
@@ -102,12 +156,7 @@ export function Chat() {
 
   return (
     <div className="mx-auto flex h-dvh w-full max-w-2xl flex-col px-4">
-      <header className="py-6">
-        <h1 className="text-xl font-semibold">Currency Copilot</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Exchange rates from the European Central Bank, explained.
-        </p>
-      </header>
+      <Header recent={recent} />
 
       <main className="flex-1 space-y-6 overflow-y-auto pb-6">
         {messages.length === 0 && (
