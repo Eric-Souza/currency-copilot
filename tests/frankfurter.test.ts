@@ -8,7 +8,7 @@ describe('getLatestRate', () => {
   it('returns the rate and its publication date', async () => {
     const fetchFn = fakeFetch({ amount: 1, base: 'USD', date: '2026-10-26', rates: { BRL: 5.5884 } })
     expect(await getLatestRate('usd', 'brl', fetchFn)).toEqual({ base: 'USD', quote: 'BRL', rate: 5.5884, date: '2026-10-26' })
-    expect(fetchFn).toHaveBeenCalledWith('https://api.frankfurter.dev/v1/latest?base=USD&symbols=BRL')
+    expect(fetchFn).toHaveBeenCalledWith('https://api.frankfurter.dev/v1/latest?base=USD&symbols=BRL', expect.anything())
   })
 
   it('answers 1 for the same currency', async () => {
@@ -19,6 +19,12 @@ describe('getLatestRate', () => {
   it('explains unsupported currencies', async () => {
     const fetchFn = fakeFetch({ message: 'not found' }, { status: 404 })
     await expect(getLatestRate('USD', 'ARS', fetchFn)).rejects.toThrow(/USD\/ARS isn't available/)
+  })
+
+  it('turns a hung request into a readable error', async () => {
+    const timeout = Object.assign(new Error('aborted'), { name: 'TimeoutError' })
+    const fetchFn = vi.fn(async () => Promise.reject(timeout)) as unknown as typeof fetch
+    await expect(getLatestRate('USD', 'BRL', fetchFn)).rejects.toThrow("Frankfurter didn't respond within 8 seconds")
   })
 
   it('reports other failures', async () => {

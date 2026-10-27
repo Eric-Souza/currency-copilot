@@ -19,6 +19,9 @@ export async function POST(req: Request) {
     messages: await convertToModelMessages(messages),
     tools,
     stopWhen: stepCountIs(5),
+    // Fail inside maxDuration, and fast when a busy model stops sending, instead of hanging
+    timeout: { totalMs: 28_000, chunkMs: 15_000 },
+    abortSignal: req.signal,
   })
   return result.toUIMessageStreamResponse({ onError: chatErrorMessage })
 }
