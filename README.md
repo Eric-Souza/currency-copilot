@@ -2,7 +2,7 @@
 
 A streaming AI chat for currency questions, built with Next.js and the [Vercel AI SDK](https://ai-sdk.dev). Ask *"How much is $3,000 in reais today?"* or *"How has USD/BRL moved this month?"* and the model calls typed tools for live and historical rates. Instead of a wall of text, the answers render as React components: rate cards, history charts, and conversion tables.
 
-> **Status:** all four tools work, and chats are saved in Neon. Playwright tests and a Vercel deployment are next.
+> **Status:** all four tools work, chats are saved in Neon, and CI runs unit and Playwright tests. A Vercel deployment is next.
 
 ## What it shows
 
@@ -50,7 +50,10 @@ currency-copilot/
     lib/
       tools/                # tool definitions (Zod schemas + execute)
       db/                   # Drizzle schema, client, and chat store
+      mock-model.ts         # scripted model for the end-to-end tests
   drizzle/                  # SQL migrations
+  tests/                    # Vitest: tools, analysis, chat route, chat store on PGlite
+  e2e/                      # Playwright specs and the fake services they run against
   docs/                     # screenshots, design notes
 ```
 
@@ -62,6 +65,7 @@ npm install
 npm run db:migrate           # optional: creates the tables in Neon (needs DATABASE_URL)
 npm run dev                  # http://localhost:3000
 npm test                     # a scripted model and PGlite: no API key, network, or database
+npm run test:e2e             # Playwright against the production build, same idea
 ```
 
 | Variable | Default | What it does |
@@ -72,6 +76,12 @@ npm test                     # a scripted model and PGlite: no API key, network,
 | `GROQ_API_KEY` | none | From the [Groq console](https://console.groq.com/keys) |
 | `DATABASE_URL` | none | Neon's pooled connection string, for saved chats. Without it, chats aren't saved |
 | `DATABASE_URL_UNPOOLED` | `DATABASE_URL` | Neon's direct connection string, for migrations |
+
+## Tests
+
+- **Unit (Vitest, 31 tests):** the Frankfurter client and formatting, the analysis rules, each tool, the chat route end to end with a scripted model (`MockLanguageModelV3`), and the chat store against PGlite migrated with the same SQL as Neon.
+- **End to end (Playwright, 3 tests):** the production build runs with `AI_PROVIDER=mock`, a fake Frankfurter, and PGlite served over the Postgres wire protocol, so the app's real `pg` driver and migrations are exercised. They cover a conversion table that survives a reload and shows up under recent chats, the history chart, and a second browser that can neither read nor continue someone else's chat.
+- **CI:** GitHub Actions runs lint, typecheck, and both suites on every push.
 
 Rates are ECB reference rates, published once per working day around 16:00 CET, so they're not live market quotes, and Frankfurter covers about 30 major currencies.
 

@@ -1,7 +1,8 @@
 // Frankfurter: free European Central Bank reference rates, no API key. Rates update once per
 // working day, around 16:00 CET, so "latest" on a weekend is Friday's rate.
 
-const BASE_URL = 'https://api.frankfurter.dev/v1'
+// FRANKFURTER_URL points the end-to-end tests at a fake
+const BASE_URL = process.env.FRANKFURTER_URL ?? 'https://api.frankfurter.dev/v1'
 // Its usual response time is under a second; a hung request shouldn't stall the whole chat
 const TIMEOUT_MS = 8000
 
