@@ -1,0 +1,24 @@
+import { convertToModelMessages, stepCountIs, streamText } from 'ai'
+import { chatErrorMessage } from '@/lib/errors'
+import { getModel } from '@/lib/model'
+import { type ChatMessage, tools } from '@/lib/tools'
+
+export const maxDuration = 30
+
+const SYSTEM = `You answer questions about currency exchange rates.
+Use the tools for every rate. Never state a rate from memory.
+Tool results are shown to the user as cards, so don't repeat their numbers in a list or table:
+add a short sentence of context instead, such as when the rate was published.
+Rates are European Central Bank reference rates, updated once per working day, not live market quotes.`
+
+export async function POST(req: Request) {
+  const { messages }: { messages: ChatMessage[] } = await req.json()
+  const result = streamText({
+    model: getModel(),
+    system: SYSTEM,
+    messages: await convertToModelMessages(messages),
+    tools,
+    stopWhen: stepCountIs(5),
+  })
+  return result.toUIMessageStreamResponse({ onError: chatErrorMessage })
+}
