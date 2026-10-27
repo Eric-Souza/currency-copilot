@@ -8,7 +8,8 @@ import { groq } from '@ai-sdk/groq'
 import type { LanguageModel } from 'ai'
 
 export const DEFAULT_MODELS = {
-  google: 'gemini-3.6-flash',
+  // Flash Lite: 500 free requests a day, against 20 for Gemini 3.6/3.8 Flash
+  google: 'gemini-3.5-flash-lite',
   groq: 'openai/gpt-oss-120b',
 } as const
 

@@ -2,6 +2,7 @@
 
 import { useChat } from '@ai-sdk/react'
 import { useEffect, useRef, useState } from 'react'
+import { ExchangeSummary, ExchangeSummarySkeleton } from '@/components/tool-ui/exchange-summary'
 import { ConversionTable, ConversionTableSkeleton } from '@/components/tool-ui/conversion-table'
 import { RateCard, RateCardSkeleton } from '@/components/tool-ui/rate-card'
 import { RateHistoryChart, RateHistorySkeleton } from '@/components/tool-ui/rate-history-chart'
@@ -10,7 +11,7 @@ import type { ChatMessage } from '@/lib/tools'
 const SUGGESTIONS = [
   'What is the dollar worth in reais today?',
   'How has USD/BRL moved this month?',
-  'EUR to GBP over the last 3 months',
+  'Is today a good day to change dollars into euros?',
   'How much is 500 dollars in reais, euros and yen?',
 ]
 
@@ -63,6 +64,17 @@ function MessageParts({ message }: { message: ChatMessage }) {
             return null
           default:
             return <ConversionTableSkeleton key={i} />
+        }
+      case 'tool-analyzePair':
+        switch (part.state) {
+          case 'output-available':
+            return <ExchangeSummary key={i} {...part.output} />
+          case 'output-error':
+            return <ToolError key={i} text={part.errorText} />
+          case 'output-denied':
+            return null
+          default:
+            return <ExchangeSummarySkeleton key={i} />
         }
       default:
         return null

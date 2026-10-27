@@ -64,7 +64,7 @@ npm test                     # the chat route runs against a scripted model, no 
 | Variable | Default | What it does |
 |---|---|---|
 | `AI_PROVIDER` | `google` | `google` or `groq` |
-| `AI_MODEL` | `gemini-3.6-flash` / `openai/gpt-oss-120b` | Overrides the provider's default model |
+| `AI_MODEL` | `gemini-3.5-flash-lite` / `openai/gpt-oss-120b` | Overrides the provider's default model |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | none | From [AI Studio](https://aistudio.google.com/apikey) |
 | `GROQ_API_KEY` | none | From the [Groq console](https://console.groq.com/keys) |
 | `DATABASE_URL` | none | Neon Postgres for saved chats (not used yet) |
