@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { getLatestRate, getRateHistory } from '@/lib/frankfurter'
+import { convert, getLatestRate, getRateHistory } from '@/lib/frankfurter'
+import { formatAmount } from '@/lib/format'
 
 const fakeFetch = (body: unknown, init: ResponseInit = {}) =>
   vi.fn(async () => Response.json(body, init)) as unknown as typeof fetch & ReturnType<typeof vi.fn>
@@ -52,5 +53,42 @@ describe('getRateHistory', () => {
 
   it('has nothing to chart for the same currency', async () => {
     await expect(getRateHistory('EUR', 'eur', 30, fakeFetch(series))).rejects.toThrow(/always 1/)
+  })
+})
+
+describe('convert', () => {
+  it('converts into every currency with one request, in the order asked', async () => {
+    const fetchFn = fakeFetch({ amount: 1, base: 'USD', date: '2026-10-26', rates: { BRL: 5.5884, JPY: 157.45 } })
+    const result = await convert(500, 'usd', ['jpy', 'BRL', 'brl'], fetchFn)
+    expect(fetchFn).toHaveBeenCalledWith('https://api.frankfurter.dev/v1/latest?base=USD&symbols=JPY,BRL', expect.anything())
+    expect(result).toEqual({
+      amount: 500,
+      base: 'USD',
+      date: '2026-10-26',
+      rows: [
+        { quote: 'JPY', rate: 157.45, value: 78_725 },
+        { quote: 'BRL', rate: 5.5884, value: 2794.2 },
+      ],
+      unavailable: [],
+    })
+  })
+
+  it('lists the currencies Frankfurter left out, and handles the base itself', async () => {
+    const fetchFn = fakeFetch({ amount: 1, base: 'USD', date: '2026-10-26', rates: { BRL: 5.5884 } })
+    const result = await convert(10, 'USD', ['BRL', 'ARS', 'USD'], fetchFn)
+    expect(result.rows.map((r) => [r.quote, r.value])).toEqual([['BRL', 55.884], ['USD', 10]])
+    expect(result.unavailable).toEqual(['ARS'])
+  })
+
+  it('explains when nothing could be converted', async () => {
+    const fetchFn = fakeFetch({ message: 'not found' }, { status: 404 })
+    await expect(convert(10, 'USD', ['ARS'], fetchFn)).rejects.toThrow(/USD\/ARS isn't available/)
+  })
+})
+
+describe('formatAmount', () => {
+  it("uses each currency's usual decimals", () => {
+    expect(formatAmount(2794.2, 'BRL')).toBe('2,794.20')
+    expect(formatAmount(78_725.4, 'JPY')).toBe('78,725')
   })
 })

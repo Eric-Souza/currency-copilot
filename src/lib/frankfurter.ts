@@ -26,6 +26,16 @@ export interface RateHistory {
   changePct: number
 }
 
+export interface Conversion {
+  amount: number
+  base: string
+  /** The ECB publication date of the rates, YYYY-MM-DD */
+  date: string
+  rows: { quote: string; rate: number; value: number }[]
+  /** Requested currencies Frankfurter doesn't cover */
+  unavailable: string[]
+}
+
 export class FrankfurterError extends Error {}
 
 async function request<T>(path: string, pair: string, fetchFn: typeof fetch): Promise<T> {
@@ -85,4 +95,36 @@ export async function getRateHistory(
     max: Math.max(...rates),
     changePct: Math.round(((last - first) / first) * 10_000) / 100,
   }
+}
+
+/** `amount` of `base` in each of `quotes`, at the latest rates. */
+export async function convert(
+  amount: number,
+  base: string,
+  quotes: string[],
+  fetchFn: typeof fetch = fetch,
+): Promise<Conversion> {
+  base = base.toUpperCase()
+  quotes = [...new Set(quotes.map((q) => q.toUpperCase()))]
+  const others = quotes.filter((q) => q !== base)
+  let date: string
+  let rates: Record<string, number> = {}
+  if (others.length > 0) {
+    // One request for every currency. Frankfurter drops symbols it doesn't know, and 404s only
+    // when none are left or the base is unknown
+    const data = await request<{ date: string; rates: Record<string, number> }>(
+      `/latest?base=${base}&symbols=${others.join(',')}`,
+      `${base}/${others.join(', ')}`,
+      fetchFn,
+    )
+    date = data.date
+    rates = data.rates
+  } else {
+    date = (await request<{ date: string }>(`/latest?base=${base}`, base, fetchFn)).date
+  }
+  rates[base] = 1
+  const rows = quotes
+    .filter((quote) => rates[quote] !== undefined)
+    .map((quote) => ({ quote, rate: rates[quote], value: amount * rates[quote] }))
+  return { amount, base, date, rows, unavailable: quotes.filter((quote) => rates[quote] === undefined) }
 }
